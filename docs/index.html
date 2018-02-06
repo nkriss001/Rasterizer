@@ -25,51 +25,57 @@
 
 <h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2018</h1>
 <h1 align="middle">Project 1: Rasterizer</h1>
-<h2 align="middle">YOUR NAME, CS184-??</h2>
+<h2 align="middle">Nicholas Kriss, CS184-aar</h2>
 
 <br><br>
 
 <div>
 
 <h2 align="middle">Overview</h2>
-<p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the project.</p>
+<p>For this project, I implemented rasterization of triangles, antialiasing of triangles via supersampling, the translation, scaling, and rotation matrices, barycentric coordinates and interpolation via barycentric coordinates, pixel sampling for texture mapping, and level sampling with mipmaps for texture mapping. Together these functions, with the help of the starter code, can create very accurate pixel representations of various colored polygons and other images at various magnifications, with options that can reduce aliasing in either case. The most difficult part of the project was making sure all pixel samples were within the range of the viewing window and texture file.</p>
 
 <h2 align="middle">Section I: Rasterization</h2>
 
 <h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
 
-<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
+<p>To rasterize triangles, I first determine the bounding box of the triangle by finding the pixels containing the vertices with the highest and lowest x and y values, and then iterating over all pixels in that range. Then, I determine if the vertices are given in clockwise order by finding the centroid of the triangle, which must by definition be inside the triangle, and seeing if it passes the line test for a single line. I find the center of each pixel and check if it is above every edge of the triangle, if the vertices are given counterclockwise, or if it below every edge of the triangle, if the vertices are given clockwise, or if it is on a left or top edge. If one of these conditions holds, I consider the pixel inside the triangle and color it.</p>
 
 <div align="middle">
   <table style="width=100%">
     <tr>
       <td>
-        <img src="images/image1.png" align="middle" width="400px"/>
-        <figcaption align="middle">Caption goes here.</figcaption>
-      </td>
-      <td>
-        <img src="images/image2.png" align="middle" width="400px"/>
-        <figcaption align="middle">Caption goes here.</figcaption>
-      </td>
-    </tr>
-    <br>
-    <tr>
-      <td>
-        <img src="images/image3.png" align="middle" width="400px"/>
-        <figcaption align="middle">Caption goes here.</figcaption>
-      </td>
-      <td>
-        <img src="images/image4.png" align="middle" width="400px"/>
-        <figcaption align="middle">Caption goes here.</figcaption>
+        <img src="images/test4_zoom.png" align="middle" width="400px"/>
+        <figcaption align="middle">basic/test4.svg with jaggies</figcaption>
       </td>
     </tr>
   </table>
 </div>
 
-
 <h3 align="middle">Part 2: Antialiasing triangles</h3>
 
+<p>I implemented supersampling by iterating through different points in each pixel in addition to iterating through the pixels as in Part 1. Given the sample rate, I found the center of each subpixel could be found by adding the coordinates of the top left corner of the whole pixel to one over the sample rate times the subpixel we are working on, plus one half of one over the sampling rate. Now, I perform the same triangle containment test as in Part 1, but for each subpixel instead of the entire pixel at once. When I eventually write the pixel to the screen, I average the colors of each subpixel and treat that as the pixel's overall color. This antialiases the triangles by smoothing out the edges, since pixels near the edge of the triangle will take intermediate values as a result of some subpixels being in the triangle and some subpixels being outside the triangle. This effectively filters out more extreme values, which is the goal of antialiasing.</p>
 
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/test4_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Sample rate 1</figcaption>
+      </td>
+      <td>
+        <img src="images/test4_4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Sample rate 4</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/test4_16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Sample rate 16</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
 
 <h3 align="middle">Part 3: Transforms</h3>
 
@@ -79,13 +85,61 @@
 
 <h3 align="middle">Part 4: Barycentric coordinates</h3>
 
+<p>Barycentric coordinates are a way to describe some value of a point, such as its location or color, by linearly interpolating the values at the vertices of the triangle. For example, the following image has one red, blue, and green vertex, each with a position in space (x, y). We can find the barycentric coordinates of each point within the triangle, based on the (x, y) coordinates of each vertex, and use those same coordinates to interpolate the color at each point.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/triangle.png" align="middle" width="400px"/>
+        <figcaption align="middle">Example of barycentric coordinates</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="images/test7.png" align="middle" width="400px"/>
+        <figcaption align="middle">basic/test7.svg</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
 
 <h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
 
+<p>For pixel sampling, we first convert find the barycentric coordinates of the pixel in the image space, and then interpolate to find the coordinates of the corresponding texel in the texture space. In nearest sampling, we set the value of the pixel to the value of the texel it maps to. In bilinear sampling, we find the nearest four texels and use use linear interpolation from their centers to decide on a value for the original pixel.</p>
+
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/nearest_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest: Sample 1</figcaption>
+      </td>
+      <td>
+        <img src="images/nearest_16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest: Sample 16</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/bilinear_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Bilinear: Sample 1</figcaption>
+      </td>
+      <td>
+        <img src="images/bilinear_16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Bilinear: Sample 16</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>Increasing the supersampling rate or switching to bilinear sampling both antialias the image, most obviously causing the latitude and longitude lines on the globe to become smoother and more continuous. There will be a large difference between nearest and bilinear sampling as we magnify the image, or whenever several pixels in the image map into the same texel. </p>
 
 <h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
 
-
+<p>In order to antialias textures at different depths, we want to create different resolutions of the texture called mipmaps and match the sample rates of the texture and the image, so that one pixel in the image corresponds roughly to one pixel of the texture. To find the appropriate mipmap level for a given pixel, I find the (u, v) coordinates of the pixel and the pixels immediately above and to the right. I then find the distance from the pixel to its surrounding pixels in the texture space using basic trigonemtry, and take the second log of the largest distance as the level. I have to limit the level to be between 0 and 8, inclusive, since level 0 is the original texture and we cannot have negative levels at higher resolution than the original texture, and level 8 consists of a single pixel, so further levels cannot have a lower resolution. For trilinear sampling, I perform a bilinear sample at both the ceiling and floor of the level, and then linearly interpolate the colors I get from each level.</p>
 
 <h2 align="middle">Section III: Art Competition</h2>
 <p>If you are not participating in the optional art competition, don't worry about this section!</p>

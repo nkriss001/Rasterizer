@@ -494,8 +494,92 @@ void DrawRend::rasterize_triangle( float x0, float y0,
   // Part 4: Add barycentric coordinates and use tri->color for shading when available.
   // Part 5: Fill in the SampleParams struct and pass it to the tri->color function.
   // Part 6: Pass in correct barycentric differentials to tri->color for mipmapping.
+  float dX0 = x1 - x0;
+  float dX1 = x2 - x1;
+  float dX2 = x0 - x2;
+  float dY0 = y1 - y0;
+  float dY1 = y2 - y1;
+  float dY2 = y0 - y2;
+  float left = floor(min({x0, x1, x2}));
+  float right = ceil(max({x0, x1, x2}));
+  float top = floor(min({y0, y1, y2}));
+  float bottom = ceil(max({y0, y1, y2}));
+  float displace = 1/(2*sqrt(sample_rate));
+  float cx = (x0 + x1 + x2)/3.0;
+  float cy = (y0 + y1 + y2)/3.0;
+  bool flip = false;
+  if ((-(cx - x0)*dY0 + (cy - y0)*dX0 < 0)) {
+    flip = true;
+  }
+  bool e0 = false;
+  bool e1 = false;
+  bool e2 = false;
+  if (y0 == y1 && y0 > y2) {
+    e0 = true;
+  }
+  if (y1 == y2 && y1 > y0) {
+    e1 = true;
+  }
+  if (y2 == y0 && y2 > y1) {
+    e2 = true;
+  }
+  if (!flip) {
+    if (y0 < y1) {
+      e0 = true;
+    }
+    if (y1 < y2) {
+      e1 = true;
+    }
+    if (y2 < y0) {
+      e2 = true;
+    }
+  } else {
+    if (y1 < y0) {
+      e0 = true;
+    }
+    if (y2 < y1) {
+      e1 = true;
+    }
+    if (y0 < y2) {
+      e2 = true;
+    }
+  }
+  
+  float d0 = dX0*dY1 - dY0*dX1;
+  float d1 = dX1*dY2 - dY1*dX2;
+  float d2 = dX2*dY0 - dY2*dX0;
 
-
+  SampleParams sp = SampleParams();
+  for (float x = max(left, float(0)); x <= min(right, float(width-1)); x += 1) {
+    for (float y = max(top, float(0)); y <= min(bottom, float(height-1)); y += 1) {
+      float dx = x + (1/sample_rate);
+      float dy = y + (1/sample_rate);
+      for (float i = 0; i < sqrt(sample_rate); i++) {
+        float a = i/sqrt(sample_rate) + dx;
+        for (float j = 0; j < sqrt(sample_rate); j++) {
+          float b = j/sqrt(sample_rate) + dy;
+          float n0 = -(a - x0)*dY0 + (b - y0)*dX0;
+          float n1 = -(a - x1)*dY1 + (b - y1)*dX1;
+          float n2 = -(a - x2)*dY2 + (b - y2)*dX2;
+          if ((!flip && n0 > 0 && n1 > 0 && n2 > 0) || (flip && n0 < 0 && n1 < 0 && n2 < 0)
+           || (n0 == 0 && e0) || (n1 == 0 && e1) || (n2 == 0 && e2)) {
+            if (tri != NULL) {
+              Vector3D p_bary = Vector3D(n1/d0, n2/d1, n0/d2);
+              Vector3D p_dx_bary = Vector3D((-(a + 1 - x1)*dY1 + (b - y1)*dX1)/d0, 
+                (-(a + 1 - x2)*dY2 + (b - y2)*dX2)/d1, (-(a + 1 - x0)*dY0 + (b - y0)*dX0)/d2);
+              Vector3D p_dy_bary = Vector3D((-(a - x1)*dY1 + (b + 1 - y1)*dX1)/d0, 
+                (-(a - x2)*dY2 + (b + 1 - y2)*dX2)/d1, (-(a - x0)*dY0 + (b + 1 - y0)*dX0)/d2);
+              sp.psm = psm;
+              sp.lsm = lsm;
+              samplebuffer[y][x].fill_color(i, j, tri->color(p_bary, p_dx_bary, p_dy_bary, sp));
+            } else {
+              samplebuffer[y][x].fill_color(i, j, color);
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 

@@ -4,28 +4,86 @@
 namespace CGL {
 
 Color Texture::sample(const SampleParams &sp) {
-  // Part 5: Fill this in.
+  //Part 5: Fill this in.
+  float level = max(float(0), min(float(8), get_level(sp)));
+  if (sp.lsm == 0 || sp.lsm == 1) {
+    level = floor(level);
+    if (sp.psm == P_NEAREST) {
+      return sample_nearest(sp.p_uv, level);
+    } else if (sp.psm == P_LINEAR) {
+      return sample_bilinear(sp.p_uv, level);
+    }
+  } else {
+    return sample_trilinear(sp.p_uv, sp.p_dx_uv, sp.p_dy_uv);
+  }
   return Color();
 }
 
 float Texture::get_level(const SampleParams &sp) {
-  // Part 6: Fill this in.
-  return 0;
+  //Part 6: Fill this in.
+  if (sp.lsm == 0) {
+    return 0;
+  }
+  MipLevel &m = mipmap[0];
+  float du_dx = m.width*(sp.p_dx_uv[0] - sp.p_uv[0]);
+  float dv_dx = m.height*(sp.p_dx_uv[1] - sp.p_uv[1]);
+  float du_dy = m.width*(sp.p_dy_uv[0] - sp.p_uv[0]);
+  float dv_dy = m.height*(sp.p_dy_uv[1] - sp.p_uv[1]);
+  float L = max(sqrt(du_dx*du_dx + dv_dx*dv_dx), sqrt(du_dy*du_dy + dv_dy*dv_dy));
+  return log2(L);
 }
 
 Color Texture::sample_nearest(Vector2D uv, int level) {
   // Part 5: Fill this in.
-  return Color();
+  MipLevel &m = mipmap[level];
+  float width = m.width;
+  float height = m.height;
+  float u = min(float(floor(width*uv[0])), width-1);
+  float v = min(float(floor(height*uv[1])), height-1);
+  float texel = 4*(width*v + u);
+  return Color(255*m.texels[texel], 255*m.texels[texel+1], 255*m.texels[texel+2], 255*m.texels[texel+3]);
 }
 
 Color Texture::sample_bilinear(Vector2D uv, int level) {
   // Part 5: Fill this in.
-  return Color();
+  MipLevel &m = mipmap[level];
+  float width = m.width;
+  float height = m.height;
+  float u = max(float(0), min(float(width*uv[0]), width-1));
+  float v = max(float(0), min(float(height*uv[1]), height-1));
+  float u00 = max(float(0), min(float(floor(u - 0.5)), width-1));
+  float v00 = max(float(0), min(float(floor(v + 0.5)), height-1));
+  float u01 = max(float(0), min(float(floor(u - 0.5)), width-1));
+  float v01 = max(float(0), min(float(floor(v - 0.5)), height-1));
+  float u10 = max(float(0), min(float(floor(u + 0.5)), width-1));
+  float v10 = max(float(0), min(float(floor(v + 0.5)), height-1));
+  float u11 = max(float(0), min(float(floor(u + 0.5)), width-1));
+  float v11 = max(float(0), min(float(floor(v - 0.5)), height-1));
+  Color c00 = Color(&(m.texels[4*(width*v00 + u00)]));
+  Color c01 = Color(&(m.texels[4*(width*v01 + u01)]));
+  Color c10 = Color(&(m.texels[4*(width*v10 + u10)]));
+  Color c11 = Color(&(m.texels[4*(width*v11 + u11)]));
+  float s = u - (u00 + 0.5);
+  float t = (v00 + 0.5) - v;
+  Color c0 = c00 + s*(c10 + -1*c00);
+  Color c1 = c01 + s*(c11 + -1*c01);
+  return (c0 + t*(c1 + -1*c0));
 }
 
 Color Texture::sample_trilinear(Vector2D uv, Vector2D du, Vector2D dv) {
   // Part 6: Fill this in.
-  return Color();
+  MipLevel &m = mipmap[0];
+  float width = m.width;
+  float height = m.height;
+  float du_dx = width*(du[0] - uv[0]);
+  float dv_dx = width*(du[1] - uv[1]);
+  float du_dy = height*(dv[0] - uv[0]);
+  float dv_dy = height*(dv[1] - uv[1]);
+  float L = max(sqrt(du_dx*du_dx + dv_dx*dv_dx), sqrt(du_dy*du_dy + dv_dy*dv_dy));
+  float D = max(float(0), min(float(8), log2(L)));
+  Color c1 = sample_bilinear(uv, ceil(D));
+  Color c2 = sample_bilinear(uv, floor(D));
+  return (floor(D) + 1 - D)*c2 + (D - floor(D))*c1;
 }
 
 
